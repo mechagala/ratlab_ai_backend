@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 # Usa el mismo nombre que tu proyecto (donde está manage.py)
 WORKDIR /ratlab_ai_backend
