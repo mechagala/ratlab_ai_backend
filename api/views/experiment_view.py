@@ -12,6 +12,7 @@ from api.serializers import (
     ExperimentDetailSerializer,
     UpdateObjectLabelSerializer
 )
+from rest_framework.permissions import IsAuthenticated
 
 class ExperimentUploadView(APIView):
     parser_classes = [MultiPartParser]
@@ -24,7 +25,7 @@ class ExperimentUploadView(APIView):
         if not serializer.is_valid():
             return Response({"status": "error", "errors": serializer.errors}, status=400)
 
-        service = ExperimentService()
+        service = ExperimentService.create_default()
         experiment = service.create_experiment(
             user=request.user,
             name=serializer.validated_data['name'],

@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from core.models.user import User
 
 class Status(models.TextChoices):
@@ -8,7 +9,13 @@ class Status(models.TextChoices):
     FAILED = 'ERR', 'Error'
 
 class Experiment(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,  # Permite valores nulos
+        blank=True  # Permite omitir en formularios/admin
+    )
+    ##user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     mouse_name = models.CharField(max_length=100)
     date = models.DateField()
