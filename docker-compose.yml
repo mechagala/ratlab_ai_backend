@@ -1,0 +1,38 @@
+# ./docker-compose.yml
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000  # Para desarrollo
+    volumes:
+      - .:/ratlab_ai_backend
+      - media_volume:/ratlab_ai_backend/media  # Volumen para videos
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+    depends_on:
+      - redis
+
+  celery-worker:
+    build: .
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - .:/ratlab_ai_backend
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings
+    depends_on:
+      - redis
+      - web
+
+volumes:
+  redis_data:
+  media_volume:
