@@ -1,14 +1,23 @@
 FROM python:3.10-slim
 
-# Usa el mismo nombre que tu proyecto (donde está manage.py)
+# Instala dependencias del sistema para OpenCV
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /ratlab_ai_backend
+
+# Instala dependencias de Python (incluyendo OpenCV)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y opencv-python opencv-python-headless || true && \
+    pip install --no-cache-dir opencv-python-headless==4.12.0.88 && \
+    pip install certifi
 
 # Crea la carpeta media y asegura permisos
 RUN mkdir -p media && chmod 777 media
-
-# Instala dependencias
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN mkdir -p /tmp/ultralytics && chmod 777 /tmp/ultralytics
 
 # Copia TODO el proyecto (incluyendo core/, config/, etc.)
 COPY . .

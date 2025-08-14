@@ -1,9 +1,12 @@
+from __future__ import absolute_import
 import os
 from celery import Celery
+from django.apps import apps
 
-# Usa el nombre de tu módulo Django (debe coincidir con settings.py)
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-app = Celery('ratlab')  # Nombre del proyecto
+app = Celery('config')
 app.config_from_object('django.conf:settings', namespace='CELERY')
-app.autodiscover_tasks(['core'])  # Busca tasks.py en tus apps
+
+# Auto-descubre las tareas en todas las apps INSTALLED_APPS
+app.autodiscover_tasks(['core.tasks'], force=True)

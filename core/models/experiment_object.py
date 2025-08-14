@@ -1,6 +1,5 @@
 from django.db import models
 from django.core.exceptions import ValidationError
-from core.models.experiment import Experiment
 
 class ExperimentObject(models.Model):
     class Reference(models.IntegerChoices):
@@ -11,11 +10,9 @@ class ExperimentObject(models.Model):
         NOVEL = 'NOV', 'Novel'
         FAMILIAR = 'FAM', 'Familiar'
 
-    experiment = models.ForeignKey(
-        Experiment,
-        on_delete=models.CASCADE,
-        related_name='objects'
-    )
+    # Reemplazado ForeignKey con IntegerField
+    experiment_id = models.IntegerField(help_text="ID del experimento relacionado")
+    
     name = models.CharField(max_length=100)
     reference = models.IntegerField(
         choices=Reference.choices,
@@ -36,34 +33,30 @@ class ExperimentObject(models.Model):
     class Meta:
         verbose_name = "Objeto de Experimento"
         verbose_name_plural = "Objetos de Experimento"
-        ordering = ['experiment', 'reference']
+        ordering = ['experiment_id', 'reference']
         constraints = [
             models.UniqueConstraint(
-                fields=['experiment', 'reference'],
+                fields=['experiment_id', 'reference'],
                 name='unique_object_reference_per_experiment'
-            ),
-            # Eliminado: CheckConstraint de referencia
+            )
         ]
 
     def clean(self):
         """Validaciones a nivel de aplicación"""
-        # Validación de referencia (1 o 2)
         if self.reference not in [1, 2]:
             raise ValidationError({
                 'reference': 'La referencia debe ser 1 (Objeto 1) o 2 (Objeto 2)'
             })
         
-        # Validación de consistencia label/reference si es necesario
         if self.label == self.Label.NOVEL and self.reference != 1:
             raise ValidationError({
                 'label': 'El objeto Novel debe ser la referencia 1'
             })
 
     def save(self, *args, **kwargs):
-        """Sobrescribimos save para incluir validaciones"""
-        self.full_clean()  # Ejecuta clean() y otras validaciones
+        self.full_clean()
         super().save(*args, **kwargs)
 
     def __str__(self):
         label_display = self.get_label_display() if self.label else "Sin etiqueta"
-        return f"{self.name} (Ref: {self.reference}, {label_display}) - {self.experiment.name}"
+        return f"{self.name} (Ref: {self.reference}, {label_display})"

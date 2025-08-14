@@ -1,10 +1,7 @@
 from rest_framework import serializers
 from core.models import Experiment, ExperimentObject, Clip
-from django.db.models import Sum, Prefetch
+from django.db.models import Sum
 
-# ----------------------------
-# Mixin para validación común
-# ----------------------------
 class ExperimentObjectReferenceValidator:
     """Valida que la referencia del objeto sea única por experimento"""
     def validate_reference(self, value):
@@ -21,20 +18,15 @@ class ExperimentObjectReferenceValidator:
             )
         return value
 
-# ----------------------------
-# Serializers principales
-# ----------------------------
 class BaseExperimentSerializer(serializers.ModelSerializer):
-    """Serializer base para Experimentos (evita duplicación)"""
     class Meta:
         model = Experiment
         fields = ['id', 'name', 'mouse_name', 'date', 'status', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'status', 'created_at']
 
 class ExperimentObjectSerializer(serializers.ModelSerializer):
-    """Serializer para objetos de experimento (Object1/Object2)"""
     label_display = serializers.CharField(source='get_label_display', read_only=True)
-    time_object = serializers.FloatField(source='time')  # Renombrado a time_object
+    time_object = serializers.FloatField(source='time', read_only=True)
 
     class Meta:
         model = ExperimentObject
@@ -42,15 +34,17 @@ class ExperimentObjectSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'time_object']
 
 class ExperimentSerializer(BaseExperimentSerializer):
-    """Serializer para listado de experimentos"""
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    objects = ExperimentObjectSerializer(many=True, read_only=True)
+    experiment_objects = serializers.SerializerMethodField()
 
     class Meta(BaseExperimentSerializer.Meta):
-        fields = BaseExperimentSerializer.Meta.fields + ['status_display', 'objects']
+        fields = BaseExperimentSerializer.Meta.fields + ['status_display', 'experiment_objects']
+
+    def get_experiment_objects(self, obj):
+        objects = ExperimentObject.objects.filter(experiment_id=obj.id)
+        return ExperimentObjectSerializer(objects, many=True).data
 
 class ExperimentDetailSerializer(ExperimentSerializer):
-    """Serializer extendido para detalle de experimento"""
     clips = serializers.SerializerMethodField()
     total_exploration_time = serializers.SerializerMethodField()
 
@@ -58,25 +52,25 @@ class ExperimentDetailSerializer(ExperimentSerializer):
         fields = ExperimentSerializer.Meta.fields + ['clips', 'total_exploration_time']
 
     def get_clips(self, obj):
-        return ClipBasicSerializer(
-            obj.clips.filter(valid=True),
-            many=True,
-            context=self.context
-        ).data
+        clips = Clip.objects.filter(experiment_id=obj.id, valid=True)
+        from api.serializers.clip_serializer import ClipBasicSerializer
+        return ClipBasicSerializer(clips, many=True, context=self.context).data
 
     def get_total_exploration_time(self, obj):
-        return obj.clips.filter(valid=True).aggregate(
-            total=Sum('duration')
-        )['total'] or 0.0
+        result = Clip.objects.filter(
+            experiment_id=obj.id, 
+            valid=True
+        ).aggregate(total=Sum('duration'))
+        return result['total'] or 0.0
 
 class UploadExperimentSerializer(BaseExperimentSerializer):
-    """Serializer específico para upload de experimentos"""
     class Meta(BaseExperimentSerializer.Meta):
         fields = BaseExperimentSerializer.Meta.fields + ['video_file']
-        extra_kwargs = {'video_file': {'required': True}}
+        extra_kwargs = {
+            'video_file': {'required': True}
+        }
 
 class UpdateObjectLabelSerializer(serializers.Serializer, ExperimentObjectReferenceValidator):
-    """Serializer para actualizar labels de objetos"""
     reference = serializers.IntegerField(min_value=1, max_value=2)
     label = serializers.ChoiceField(choices=ExperimentObject.Label.choices)
     new_name = serializers.CharField(required=False, max_length=100)

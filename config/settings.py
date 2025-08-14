@@ -16,6 +16,13 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+EXPERIMENTS_VOLUME_PATH = os.environ.get("EXPERIMENTS_VOLUME_PATH", "/ratlab_ai_backend/media")
+VIDEO_PIPELINE_MODEL_PATH = os.environ.get("VIDEO_PIPELINE_MODEL_PATH", "/models/behavior/best.pt")
+VIDEO_PIPELINE_SEGMENTER_PATH = os.environ.get("VIDEO_PIPELINE_SEGMENTER_PATH", "/models/segmenter/best.pt")
+
+MEDIA_ROOT = EXPERIMENTS_VOLUME_PATH   # Django servirá /media en dev
+MEDIA_URL = "/media/"
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -38,6 +45,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    'corsheaders',
     'django_filters',
     "rest_framework",
     "api",
@@ -47,6 +55,7 @@ INSTALLED_APPS = [
 
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -65,6 +74,10 @@ REST_FRAMEWORK = {
     ]
 }
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 
 ROOT_URLCONF = "config.urls"
 
@@ -96,8 +109,8 @@ DATABASES = {
     }
 }
 
-AUTH_USER_MODEL = 'core.User'
-
+#AUTH_USER_MODEL = 'core.User'
+AUTH_USER_MODEL = 'core.User'  # Indica a Django usar tu modelo User personalizado
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 

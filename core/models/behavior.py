@@ -14,29 +14,17 @@ class Behavior(models.Model):
         default=BehaviorType.EXPLORATION,
         help_text="Tipo general de comportamiento"
     )
+    class_id = models.IntegerField(
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="ID de clase correspondiente en el modelo de ML"
+    )
 
     class Meta:
         verbose_name = "Comportamiento"
         verbose_name_plural = "Comportamientos"
-        ordering = ['name']
-
-    @classmethod
-    def create_defaults(cls):
-        cls.objects.get_or_create(
-            name='Exploración Novel',
-            behavior_type='EXP',
-            defaults={'description': 'Exploración de objeto nuevo'}
-        )
-        cls.objects.get_or_create(
-            name='Exploración Familiar',
-            behavior_type='EXP',
-            defaults={'description': 'Exploración de objeto conocido'}
-        )
-        cls.objects.get_or_create(
-            name='Interacción',
-            behavior_type='INT',
-            defaults={'description': 'Contacto físico con el objeto'}
-        )
+        ordering = ['class_id']
 
     def __str__(self):
-        return f"{self.name} ({self.get_behavior_type_display()})"
+        return f"{self.name} (Clase {self.class_id})"

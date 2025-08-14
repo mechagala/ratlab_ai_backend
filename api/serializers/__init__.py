@@ -14,6 +14,7 @@ from .clip_serializer import (
     BehaviorSerializer,
     ExperimentObjectRefSerializer  # Añade esta línea
 )
+from .auth_serializer import (UserSerializer, LoginSerializer)  # Asegúrate de que tu serializer de usuario esté importado 
 
 __all__ = [
     'LoginSerializer',
@@ -26,5 +27,6 @@ __all__ = [
     'ClipBasicSerializer',
     'ClipDeleteSerializer',
     'BehaviorSerializer',
-    'ExperimentObjectRefSerializer'  # Añade esta línea
+    'ExperimentObjectRefSerializer',
+    'UserSerializer' # Añade esta línea
 ]

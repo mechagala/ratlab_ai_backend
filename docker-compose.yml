@@ -1,34 +1,65 @@
-# ./docker-compose.yml
-version: '3.8'
-
 services:
   redis:
     image: redis:alpine
+    command: redis-server --save "" --appendonly no
     ports:
       - "6379:6379"
+    networks:
+      - ratlab-network
     volumes:
       - redis_data:/data
 
   web:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000  # Para desarrollo
+    command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/ratlab_ai_backend
-      - media_volume:/ratlab_ai_backend/media  # Volumen para videos
+      - media_volume:/ratlab_ai_backend/media      # Volumen compartido
+      - ./models:/models:ro                        # Modelos .pt
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
+      - YOLO_CONFIG_DIR=/tmp/ultralytics
       - DJANGO_SETTINGS_MODULE=config.settings
+    networks:
+      - ratlab-network
     depends_on:
       - redis
 
   celery-worker:
     build: .
-    command: celery -A config worker --loglevel=info
+    command: 
+      - bash
+      - -c
+      - |
+        # Espera a que Django esté listo
+        while ! python -c "import django; django.setup()"; do
+          echo "Waiting for Django to be ready...";
+          sleep 5;
+        done;
+        
+        # Limpieza inicial
+        echo "Purging old tasks...";
+        celery -A config purge -f;
+        redis-cli -h redis FLUSHDB;
+        
+        echo "Starting Celery worker...";
+        celery -A config worker -l info --pool=solo
     volumes:
       - .:/ratlab_ai_backend
+      - media_volume:/ratlab_ai_backend/media
+      - ./models:/models:ro
+    env_file:
+      - .env
     environment:
+      - YOLO_CONFIG_DIR=/tmp/ultralytics
       - DJANGO_SETTINGS_MODULE=config.settings
+      - PYTHONPATH=/ratlab_ai_backend
+      - CELERYD_CONSUMER_PREFETCH_MULTIPLIER=1  # Evita prefetch de tareas antiguas
+    networks:
+      - ratlab-network
     depends_on:
       - redis
       - web
@@ -36,3 +67,8 @@ services:
 volumes:
   redis_data:
   media_volume:
+
+networks:
+  ratlab-network:
+    driver: bridge
+    external: true 

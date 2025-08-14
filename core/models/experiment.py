@@ -1,6 +1,4 @@
 from django.db import models
-from django.conf import settings
-from core.models.user import User
 
 class Status(models.TextChoices):
     UPLOADED = 'UPL', 'Video Subido'
@@ -9,13 +7,6 @@ class Status(models.TextChoices):
     FAILED = 'ERR', 'Error'
 
 class Experiment(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        null=True,  # Permite valores nulos
-        blank=True  # Permite omitir en formularios/admin
-    )
-    ##user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     mouse_name = models.CharField(max_length=100)
     date = models.DateField()
@@ -26,10 +17,12 @@ class Experiment(models.Model):
         default=Status.UPLOADED
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    objects = models.Manager()
+    # Eliminado el manager personalizado ya que no es necesario
 
     class Meta:
         ordering = ['-created_at']
+        verbose_name = "Experimento"
+        verbose_name_plural = "Experimentos"
 
     def __str__(self):
         return f"{self.name} ({self.mouse_name})"

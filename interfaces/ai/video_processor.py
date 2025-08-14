@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
 
 class VideoProcessor(ABC):
-    """Interfaz para procesamiento de videos con IA"""
-    
+    """Contrato para procesamiento de video"""
     @abstractmethod
-    def enqueue_processing(self, experiment_id: int):
-        """Envía el experimento a la cola de procesamiento"""
-        pass
+    def process(self, experiment_id: int) -> dict:
+        """Procesa un experimento y devuelve metadata"""
+        raise NotImplementedError

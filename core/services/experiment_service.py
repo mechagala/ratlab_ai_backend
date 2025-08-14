@@ -1,55 +1,58 @@
-from django.db import transaction
-from core.models import Experiment, ExperimentObject, Status
-from interfaces.ai.video_processor import VideoProcessor
-from infrastructure.storage.docker_volume_storage import DockerVolumeStorage
+from django.core.exceptions import ValidationError
+import logging
+from django.apps import apps
+
+logger = logging.getLogger(__name__)
 
 class ExperimentService:
-    def __init__(self, processor: VideoProcessor = None, storage=None):
-        self.storage = storage or DockerVolumeStorage()
-        self.processor = processor  # Requerido, sin valor por defecto aquí
+    def __init__(self, file_storage, video_processor):
+        self.storage = file_storage
+        self.processor = video_processor
 
-    @classmethod
-    def create_default(cls):
-        """Factory method que resuelve la dependencia circular"""
-        from infrastructure.ai.celery_processor import CeleryVideoProcessor
-        return cls(processor=CeleryVideoProcessor())
-
-    @transaction.atomic
-    def create_experiment(self, user, name, mouse_name, date, video_file):
-        """Crea un experimento y lo pone en cola para procesamiento"""
-        # 1. Almacenar video
-        video_path = self.storage.save(video_file)
-        
-        # 2. Crear experimento en la base de datos
-        experiment = Experiment(
-            user=user if user.is_authenticated else None,
-            name=name,
-            mouse_name=mouse_name,
-            date=date,
-            video_file=video_path,
-            status=Status.UPLOADED
-        )
-        experiment.save()
-        
-        # 3. Crear objetos por defecto
-        ExperimentObject.objects.bulk_create([
-            ExperimentObject(
-                experiment=experiment,
-                reference=1,
-                name="Objeto 1",
-                label=ExperimentObject.Label.NOVEL,
-                time=0.0
-            ),
-            ExperimentObject(
-                experiment=experiment,
-                reference=2,
-                name="Objeto 2",
-                label=ExperimentObject.Label.FAMILIAR,
-                time=0.0
+    def create_experiment(self, name, mouse_name, date, video_file):
+        """Crea un nuevo experimento sin usar relaciones ForeignKey"""
+        try:
+            Experiment = apps.get_model('core', 'Experiment')
+            
+            if not all([name, mouse_name, date, video_file]):
+                raise ValidationError("Todos los campos son requeridos")
+            
+            file_path = self.storage.save(video_file)
+            
+            experiment = Experiment(
+                name=name,
+                mouse_name=mouse_name,
+                date=date,
+                video_file=file_path,
+                status='UPL'
             )
-        ])
-        
-        # 4. Poner en cola de procesamiento
-        self.processor.enqueue_processing(experiment.id)
-        
-        return experiment
+            experiment.save()
+            
+            # Procesar el video usando el ID del experimento
+            self.processor.process(experiment.id)
+            return experiment
+            
+        except Exception as e:
+            logger.error(f"Error creando experimento: {str(e)}", exc_info=True)
+            raise
+
+    def update_object_label(self, experiment_id, reference, new_label):
+        """Actualiza el label de un objeto de experimento"""
+        try:
+            ExperimentObject = apps.get_model('core', 'ExperimentObject')
+            
+            # Obtener el objeto por experiment_id y reference
+            obj = ExperimentObject.objects.get(
+                experiment_id=experiment_id,
+                reference=reference
+            )
+            
+            obj.label = new_label
+            obj.save()
+            return obj
+            
+        except ExperimentObject.DoesNotExist:
+            raise ValueError(f"No se encontró objeto con referencia {reference} para el experimento {experiment_id}")
+        except Exception as e:
+            logger.error(f"Error actualizando label: {str(e)}")
+            raise

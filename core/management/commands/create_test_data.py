@@ -1,93 +1,60 @@
 from django.core.management.base import BaseCommand
-from django.utils import timezone
-from django.contrib.auth import get_user_model
-from core.models import Experiment, ExperimentObject, Clip, Behavior
+from core.models.experiment import Experiment
+from core.models.experiment_object import ExperimentObject
+from core.models.clip import Clip
+from core.models.behavior import Behavior
+from core.models.user import User
+from django.core.files import File
+import os
+from datetime import date, timedelta
+import random
 
 class Command(BaseCommand):
-    help = 'Crea datos de prueba para la API'
+    help = 'Crea datos de prueba para experimentos'
 
     def handle(self, *args, **options):
-        User = get_user_model()
-        
-        # Crear usuario
-        user, _ = User.objects.get_or_create(
-            username='investigador1',
-            defaults={
-                'email': 'investigador2@lab.com',
-                'password': 'password1234',
-                'institution': 'Laboratorio Neurociencias',
-                'department': 'Cognición'
-            }
-        )
-        
-        # Comportamientos
-        exploration, _ = Behavior.objects.get_or_create(
-            name='Exploración Novel',
-            behavior_type='EXP',
-            defaults={'description': 'Exploración de objeto nuevo'}
-        )
-        interaction, _ = Behavior.objects.get_or_create(
-            name='Interacción',
-            behavior_type='INT',
-            defaults={'description': 'Contacto físico con el objeto'}
-        )
+        # Comportamientos ya deberían existir por la migración 0002
+        behaviors = Behavior.objects.all()
+        if not behaviors.exists():
+            self.stdout.write(self.style.ERROR('No hay comportamientos en la base de datos. Ejecuta las migraciones primero.'))
+            return
 
-        # Crear experimento
-        # experiment = Experiment.objects.create(
-        #     user=user,
-        #     name='Experimento Memoria Objetos',
-        #     mouse_name='Rata-001',
-        #     video_file='experiments/dummy.mp4',
-        #     date=timezone.now().date(),
-        #     status='completed'
-        # )
+        # Nombres de ratones de prueba
+        mouse_names = ['M001', 'M002', 'M003', 'M004', 'M005']
 
-        experiment = Experiment(
-            user=user,
-            name='Experimento Memoria Objetos Rata 2',
-            mouse_name='Rata-002',
-            date=timezone.now().date(),
-            video_file='experiments/dummy.mp4',  # Required field
-            status='completed'
-        )
-        experiment.save()
+        # Crear 5 experimentos de prueba
+        for i in range(1, 6):
+            exp = Experiment.objects.create(
+                name=f"Experimento_{i}",
+                mouse_name=random.choice(mouse_names),
+                date=date.today() - timedelta(days=i),
+                status=random.choice(['UPL', 'PRO', 'COM', 'ERR']),
+                video_file='experiments/dummy_video.mp4'  # Necesitas un archivo dummy o manejar esto diferente
+            )
 
-        # Objetos del experimento
-        obj1 = ExperimentObject.objects.create(
-            experiment=experiment,
-            reference=1,
-            name='Objeto Nuevo',
-            label='NOV',
-            time=15.2
-        )
-        obj2 = ExperimentObject.objects.create(
-            experiment=experiment,
-            reference=2,
-            name='Objeto Familiar',
-            label='FAM',
-            time=8.7
-        )
+            # Crear objetos para el experimento (Objeto 1 y 2)
+            for ref in [1, 2]:
+                obj = ExperimentObject.objects.create(
+                    experiment_id=exp.id,  # Usamos el ID directamente
+                    reference=ref,
+                    name=f"Objeto_{ref}",
+                    label='NOV' if ref == 1 else 'FAM',
+                    time=random.uniform(10.0, 60.0)
+                )
 
-        # Clips
-        Clip.objects.create(
-            experiment=experiment,
-            experiment_object=obj1,
-            behavior=exploration,
-            start_time=5.3,
-            end_time=8.1,
-            duration=2.8,
-            valid=True
-        )
-        Clip.objects.create(
-            experiment=experiment,
-            experiment_object=obj2,
-            behavior=interaction,
-            start_time=12.5,
-            end_time=14.3,
-            duration=1.8,
-            valid=True
-        )
+                # Crear 3-5 clips por objeto
+                for clip_num in range(1, random.randint(3, 6)):
+                    Clip.objects.create(
+                        experiment_id=exp.id,
+                        experiment_object_id=obj.id,
+                        behavior_id=random.choice(behaviors).id,
+                        start_time=random.uniform(0, 300),
+                        end_time=random.uniform(5, 305),
+                        duration=random.uniform(5, 30),
+                        valid=random.choice([True, False]),
+                        video_clip='experiments/clips/dummy_clip.mp4'  # Archivo dummy
+                    )
 
-        self.stdout.write(self.style.SUCCESS('✅ Datos creados exitosamente'))
-        self.stdout.write(f'Usuario: investigador1 / password123')
-        self.stdout.write(f'Experiment ID: {experiment.id}')
+            self.stdout.write(f'Creado experimento {exp.name} con ID {exp.id}')
+
+        self.stdout.write(self.style.SUCCESS('Datos de prueba creados exitosamente!'))
