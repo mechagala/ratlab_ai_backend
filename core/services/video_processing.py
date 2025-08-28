@@ -24,14 +24,21 @@ class VideoProcessingService:
         try:
             logger.info(f"Iniciando procesamiento para experimento {experiment_id}")
             
+            # 1. Preparar entorno
             workdir = self._prepare_workspace(video_path, experiment_id)
+            
+            # 2. Ejecutar pipeline
             pipeline_result = self._execute_behavior_pipeline(video_path, workdir)
             
-            return self._process_pipeline_results(
+            # 3. Procesar resultados y crear registros
+            result = self._process_pipeline_results(
                 pipeline_result, 
                 video_path, 
                 experiment_id
             )
+            
+            logger.info(f"Procesamiento completado. {result['total_clips']} clips generados")
+            return result
             
         except Exception as e:
             logger.error(f"Error procesando video {video_path}: {str(e)}")
@@ -53,7 +60,8 @@ class VideoProcessingService:
             analyzer_params={
                 'min_interaction_frames': 4,
                 'max_gap_frames': 20,
-                'max_class_change_frames': 6
+                'max_class_change_frames': 6,
+                'proximity_threshold': 40
             },
             clip_params={
                 'margin_frames': 10,
@@ -149,17 +157,14 @@ class VideoProcessingService:
         Behavior = apps.get_model('core', 'Behavior')
         ExperimentObject = apps.get_model('core', 'ExperimentObject')
         
-        # Obtener objeto asociado
         object_ref = self._extract_object_reference(metadata['object_roi'])
         experiment_object = self._get_or_create_experiment_object(
             experiment_id=experiment_id,
             reference=object_ref
         )
         
-        # Obtener comportamiento
         behavior = self._get_behavior(behavior_id)
         
-        # Crear clip
         clip = Clip.objects.create(
             experiment_id=experiment_id,
             experiment_object_id=experiment_object.id,

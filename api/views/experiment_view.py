@@ -13,7 +13,7 @@ from api.serializers.experiment_serializer import (
     ExperimentDetailSerializer,
     UpdateObjectLabelSerializer
 )
-from core.models import Experiment, Clip
+from core.models import Experiment, Clip, ExperimentObject
 import logging
 
 logger = logging.getLogger(__name__)
@@ -79,21 +79,14 @@ class ExperimentStatusView(APIView):
         })
 
 class ExperimentDetailView(APIView):
-    """Endpoint para detalle de experimento (GET)"""
     def get(self, request, experiment_id):
         experiment = get_object_or_404(
-            Experiment.objects,  # Eliminado with_full_details() si usaba relaciones
+            Experiment.objects,
             id=experiment_id
         )
         
-        # Obtener datos relacionados manualmente
-        experiment_data = {
-            'experiment': experiment,
-            'objects': experiment.experiment_objects.all(),  # Esto ahora sería un filter manual
-            'clips': Clip.objects.filter(experiment_id=experiment.id)
-        }
-        
-        serializer = ExperimentDetailSerializer(experiment_data)
+        # Solo necesitas pasar el experiment al serializer
+        serializer = ExperimentDetailSerializer(experiment, context={'request': request})
         
         return Response({
             "status": "success",
@@ -166,15 +159,8 @@ class ExperimentListView(APIView):
 
         serializer = ExperimentSerializer(queryset, many=True)
         
-        # Opcional: Agregar datos relacionados si son necesarios
-        response_data = []
-        for exp in serializer.data:
-            exp_data = dict(exp)
-            exp_data['clips_count'] = Clip.objects.filter(experiment_id=exp['id']).count()
-            response_data.append(exp_data)
-            
         return Response({
             "status": "success",
-            "data": response_data,
-            "count": len(response_data)
+            "data": serializer.data,
+            "count": len(serializer.data)
         })

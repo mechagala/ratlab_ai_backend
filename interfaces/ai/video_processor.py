@@ -1,3 +1,4 @@
+# Crea un nuevo archivo: core/interfaces/video_processor.py
 from abc import ABC, abstractmethod
 
 class VideoProcessor(ABC):

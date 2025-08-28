@@ -9,4 +9,5 @@ app = Celery('config')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
 # Auto-descubre las tareas en todas las apps INSTALLED_APPS
-app.autodiscover_tasks(['core.tasks'], force=True)
+# Cambia la línea de autodiscover_tasks para que sea más específica
+app.autodiscover_tasks(['core.tasks'])  # Sin force=True
