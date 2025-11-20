@@ -62,8 +62,10 @@ class VideoProcessingPipeline:
                 output_dir=self.workdir,
                 target_frame=self.segmenter_params.get('frame_index', 20)
             )
+            logger.info(f"ROIs detectadas y guardadas en {roi_json_path}")
         elif rois is not None:
             # Guardar ROIs proporcionadas como JSON
+            logger.info("Guardando ROIs proporcionadas...")
             roi_json_path = self._save_provided_rois(rois)
         
         # 2. Detección de keypoints
@@ -110,6 +112,8 @@ class VideoProcessingPipeline:
             'roi_detection_path': roi_json_path,
             'keypoints_detection_path': keypoints_csv
         }
+
+        logger.info(f"Pipeline de procesamiento completado. Resultado: {result}")
         
         if return_predictions_df:
             result['predictions_df'] = pd.read_csv(keypoints_csv)

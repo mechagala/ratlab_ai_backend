@@ -270,22 +270,28 @@ class ROIAnalyzer:
         df = self.df.copy()
         
         for roi_name, roi_info in self.rois.items():
+            logger.info(f"Detectando interacciones con ROI: {roi_name}")
             roi_bbox = roi_info["bbox"]
             roi_class = roi_info["class_id"]
             x_col, y_col = 'nariz_x', 'nariz_y'
             
             if x_col in df.columns and y_col in df.columns:
                 if roi_class == 0:
+                    logger.info(f"Deteccion de tapa azul. ROI clase {roi_class}")
                     df[f'interaction_{roi_name}'] = df.apply(
                         lambda r: self._is_point_near_roi(r[x_col], r[y_col], roi_bbox), 
                         axis=1
                     )
+                    logger.info(f"Interacciones detectadas para {roi_name}: {df[f'interaction_{roi_name}'].sum()}")
                 else:
+                    logger.info(f"Deteccion de tapa naranaj.ROI clase {roi_class}")
                     df[f'interaction_{roi_name}'] = df.apply(
                         lambda r: self._is_point_in_roi(r[x_col], r[y_col], roi_bbox), 
                         axis=1
                     )
+                    logger.info(f"Interacciones detectadas para {roi_name}: {df[f'interaction_{roi_name}'].sum()}")
             else:
+                logger.warning(f"Columnas de nariz no encontradas en DataFrame para ROI {roi_name}")
                 df[f'interaction_{roi_name}'] = False
         
         return df
@@ -576,11 +582,11 @@ def main():
     analyzer.save_results(results, results_path)
     
     # Mostrar resumen
-    print("\n✅ Análisis completado")
-    print(f"Total episodios detectados (todos): {len(results['episodes'])}")
-    print(f"Total episodios class_id=0: {len(results['episodes'][results['episodes']['class_id'] == 0])}")
-    print("\nResumen de métricas agregadas (solo class_id=0):")
-    print(results['aggregated'].to_string(index=False))
+    logger.info("\n✅ Análisis completado")
+    logger.info(f"Total episodios detectados (todos): {len(results['episodes'])}")
+    logger.info(f"Total episodios class_id=0: {len(results['episodes'][results['episodes']['class_id'] == 0])}")
+    logger.info("\nResumen de métricas agregadas (solo class_id=0):")
+    logger.info(results['aggregated'].to_string(index=False))
     
     # 4. Extracción de clips
     logger.info("\n=== Extrayendo clips de interacción ===")
@@ -605,11 +611,11 @@ def main():
         else:
             total_clip_time = 0
         
-        print(f"\nExtracción completada. Se generaron {len(generated_clips)} clips.")
-        print(f"Los clips se guardaron en: {os.path.abspath(clips_dir)}")
-        print(f"\nComparación de tiempos (solo class_id=0):")
-        print(f"- Tiempo total calculado: {results['aggregated']['total_time_seconds'].sum():.2f} segundos")
-        print(f"- Tiempo total en clips (con márgenes): {total_clip_time:.2f} segundos")
+        logger.info(f"\nExtracción completada. Se generaron {len(generated_clips)} clips.")
+        logger.info(f"Los clips se guardaron en: {os.path.abspath(clips_dir)}")
+        logger.info(f"\nComparación de tiempos (solo class_id=0):")
+        logger.info(f"- Tiempo total calculado: {results['aggregated']['total_time_seconds'].sum():.2f} segundos")
+        logger.info(f"- Tiempo total en clips (con márgenes): {total_clip_time:.2f} segundos")
         
     finally:
         extractor.close()  

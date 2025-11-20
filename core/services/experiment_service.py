@@ -65,6 +65,9 @@ class ExperimentService:
                 video_path=video_path,
                 experiment_id=experiment_id
             )
+
+            logger.info(f"Resultado del procesamiento: {processing_result}")
+
             
             # 4. Actualizar estado
             experiment.status = 'COM'

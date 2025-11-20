@@ -4,7 +4,9 @@ import logging
 from django.core.files.storage import default_storage
 from django.core.files import File
 from django.apps import apps
-from typing import Dict, List, Optional
+from typing import Dict, Optional
+from django.core.files.base import ContentFile
+
 
 logger = logging.getLogger(__name__)
 
@@ -109,21 +111,34 @@ class VideoProcessingService:
         return float(fps)
 
     def _process_single_clip(self, clip_path: str, episode: Dict, fps: float, experiment_id: int) -> Dict:
-        saved_path = self._store_clip_file(clip_path, experiment_id)
-        metadata = self._extract_clip_metadata(episode, fps)
-        
+        saved_path = self._store_clip_file(clip_path, experiment_id)  # ya existe
+        metadata = self._extract_clip_metadata(episode, fps)          # ya existe
+
+        # NUEVO: generar y guardar thumbnail
+        thumb_path = self._save_clip_thumbnail(
+            video_path=self.video_path if hasattr(self, "video_path") else "",  # si no, pásalo como arg a _process_single_clip
+            start_frame=episode['start_frame'],
+            end_frame=episode['end_frame'],
+            experiment_id=experiment_id,
+            clip_filename=os.path.basename(saved_path)
+        )
+
         clip_id = self._create_clip_record(
             experiment_id=experiment_id,
             clip_path=saved_path,
             metadata=metadata,
-            behavior_id=episode.get('class_id')
+            behavior_id=episode.get('class_id'),
+            thumbnail_path=thumb_path   # ← ver cambio en modelo
         )
-        
+
         return {
             'clip_id': clip_id,
             'path': saved_path,
+            'thumbnail': thumb_path,     # ← devolverlo a la API
             **metadata
         }
+
+
 
     def _store_clip_file(self, clip_path: str, experiment_id: int) -> str:
         filename = os.path.basename(clip_path)
@@ -152,11 +167,10 @@ class VideoProcessingService:
             'behavior_class': episode.get('class_id')
         }
 
-    def _create_clip_record(self, experiment_id: int, clip_path: str, metadata: Dict, behavior_id: Optional[int]) -> int:
+    def _create_clip_record(self, experiment_id: int, clip_path: str, metadata: Dict, behavior_id: Optional[int], thumbnail_path: Optional[str] = None) -> int:
         Clip = apps.get_model('core', 'Clip')
         Behavior = apps.get_model('core', 'Behavior')
         ExperimentObject = apps.get_model('core', 'ExperimentObject')
-        
         object_ref = self._extract_object_reference(metadata['object_roi'])
         experiment_object = self._get_or_create_experiment_object(
             experiment_id=experiment_id,
@@ -165,7 +179,7 @@ class VideoProcessingService:
         
         behavior = self._get_behavior(behavior_id)
         
-        clip = Clip.objects.create(
+        clip = Clip(
             experiment_id=experiment_id,
             experiment_object_id=experiment_object.id,
             behavior_id=behavior.id if behavior else None,
@@ -173,36 +187,46 @@ class VideoProcessingService:
             start_time=metadata['start_time'],
             end_time=metadata['end_time'],
             duration=metadata['duration'],
-            valid=True
+            valid=True,
+            thumbnail=thumbnail_path
         )
         
+        clip.save()
+
         return clip.id
 
     def _extract_object_reference(self, roi_name: str) -> int:
-        try:
-            return int(roi_name.split('_')[-1])
-        except (IndexError, ValueError):
-            logger.warning(f"Formato de ROI inválido: {roi_name}, usando default 1")
-            return 1
+        mapping = {
+            'tapa_naranja': 1,
+            'tapa_azul': 2
+        }
+
+        if roi_name in mapping:
+            logger.info(f"Mapeo de objeto: {roi_name} -> {mapping[roi_name]}")
+            return mapping[roi_name]
+
+        # try:
+        #     return int(roi_name.split('_')[-1])
+        # except (IndexError, ValueError):
+        #     logger.warning(f"Formato de ROI inválido: {roi_name}, usando default 1")
+        #     return 1
 
     def _get_or_create_experiment_object(self, experiment_id: int, reference: int):
-        ExperimentObject = apps.get_model('core', 'ExperimentObject')
-        
-        try:
-            return ExperimentObject.objects.get(
-                experiment_id=experiment_id,
-                reference=reference
-            )
-        except ExperimentObject.DoesNotExist:
-            logger.info(f"Creando objeto {reference} para experimento {experiment_id}")
-            Label = ExperimentObject.Label
-            return ExperimentObject.objects.create(
-                experiment_id=experiment_id,
-                reference=reference,
-                name=f"Objeto {reference}",
-                label=Label.NOVEL if reference == 1 else Label.FAMILIAR,
-                time=0.0
-            )
+        ExperimentObject = apps.get_model('core', 'ExperimentObject')        
+        Label = ExperimentObject.Label
+
+        obj, created = ExperimentObject.objects.get_or_create(
+            experiment_id=experiment_id,
+            reference=reference,
+            defaults={
+                'name': f"Objeto {reference}",
+                'label': Label.NOVEL if reference == 1 else Label.FAMILIAR,
+                'time': 0.0
+            }
+        )
+        if created:
+            obj.save()
+        return obj
 
     def _get_behavior(self, class_id: Optional[int]):
         Behavior = apps.get_model('core', 'Behavior')
@@ -214,4 +238,35 @@ class VideoProcessingService:
         if behavior_name:
             return Behavior.objects.filter(name__iexact=behavior_name).first()
         
-        return Behavior.objects.first()
+        return Behavior.objects.first()    
+        
+    def _frame_to_jpeg_bytes(self, frame):
+        ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+        if not ok:
+            raise ValueError("No se pudo codificar el frame a JPEG")
+        return buf.tobytes()
+
+    def _store_image_bytes(self, rel_path, img_bytes):
+        # Guarda la imagen en default_storage y devuelve la ruta
+        from django.core.files.storage import default_storage
+        return default_storage.save(rel_path, ContentFile(img_bytes))
+
+    def _save_clip_thumbnail(self, video_path: str, start_frame: int, end_frame: int, experiment_id: int, clip_filename: str) -> str:
+        # Elegimos el frame medio del episodio en el video original
+        target = (start_frame + end_frame) // 2
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError(f"No se pudo abrir el video: {video_path}")
+        cap.set(cv2.CAP_PROP_POS_FRAMES, target)
+        ok, frame = cap.read()
+        cap.release()
+        if not ok or frame is None:
+            raise ValueError("No se pudo leer el frame para la miniatura")
+
+        img_bytes = self._frame_to_jpeg_bytes(frame)
+        # ruta en media
+        base_name = os.path.splitext(os.path.basename(clip_filename))[0]
+        rel_path = os.path.join("experiments", str(experiment_id), "clips", f"{base_name}_thumb.jpg")
+        saved_path = self._store_image_bytes(rel_path, img_bytes)
+        return saved_path

@@ -1,5 +1,8 @@
 from rest_framework import serializers
 from core.models import Clip, Behavior, ExperimentObject
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ExperimentObjectRefSerializer(serializers.ModelSerializer):
     class Meta:
@@ -55,20 +58,24 @@ class ClipSerializer(serializers.ModelSerializer):
     behavior = serializers.SerializerMethodField()
     experiment_object = serializers.SerializerMethodField()
     video_url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()  # 🆕 agregado
 
     class Meta:
         model = Clip
         fields = [
             'id', 'experiment_id', 'start_time', 'end_time', 'duration',
-            'behavior', 'experiment_object', 'video_url', 'valid'
+            'behavior', 'experiment_object', 'video_url', 'thumbnail_url',  # 🆕 agregado
+            'valid'
         ]
-        read_only_fields = ['id', 'duration', 'video_url']
+        read_only_fields = ['id', 'duration', 'video_url', 'thumbnail_url']
 
     def get_behavior(self, obj):
         try:
+            logger.info(f"Fetching behavior for Clip id {obj.id} with behavior_id {obj.behavior_id}")
             behavior = Behavior.objects.get(id=obj.behavior_id)
             return BehaviorSerializer(behavior).data
         except Behavior.DoesNotExist:
+            logger.info(f"Behavior with id {obj.behavior_id} does not exist.")
             return None
 
     def get_experiment_object(self, obj):
@@ -82,6 +89,13 @@ class ClipSerializer(serializers.ModelSerializer):
 
     def get_video_url(self, obj):
         return obj.video_clip.url if obj.video_clip else None
+
+    def get_thumbnail_url(self, obj):
+        """Devuelve la URL absoluta o relativa de la miniatura del clip"""
+        if hasattr(obj, 'thumbnail') and obj.thumbnail:
+            return obj.thumbnail.url
+        return None
+
 
 class ClipDeleteSerializer(serializers.Serializer):
     """Serializer para eliminación masiva de clips"""

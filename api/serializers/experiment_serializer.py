@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from core.models import Experiment, ExperimentObject, Clip
 from django.db.models import Sum
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ExperimentObjectReferenceValidator:
     """Valida que la referencia del objeto sea única por experimento"""
@@ -94,6 +97,7 @@ class ClipBasicSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_behavior_name(self, obj):
+        logger.info(f"Fetching behavior for Clip id {obj.id} with behavior_id {obj.behavior_id}")
         if obj.behavior_id:
             from core.models import Behavior
             behavior = Behavior.objects.filter(id=obj.behavior_id).first()
@@ -153,12 +157,15 @@ class ExperimentDetailSerializer(serializers.ModelSerializer):
         read_only=True
     )
 
+    clips_count = serializers.SerializerMethodField()
+    clips = serializers.SerializerMethodField()
+
     class Meta:
         model = Experiment
         fields = [
             'id', 'name', 'mouse_name', 'date', 'video_file',
             'status', 'status_display', 'created_at',
-            'objects', 'total_exploration_time'
+            'objects', 'total_exploration_time', 'clips_count', 'clips'  
         ]
         read_only_fields = fields
 
@@ -172,6 +179,21 @@ class ExperimentDetailSerializer(serializers.ModelSerializer):
             ).values_list('id', flat=True)
         ).aggregate(total=Sum('duration'))['total']
         return round(total, 2) if total else 0.0
+    
+    def get_clips_count(self, obj):
+        from core.models import Clip
+        # If you want all clips (not just validated), remove valid=True
+        return Clip.objects.filter(experiment_id=obj.id, valid=True).count()
+
+    def get_clips(self, obj):
+        # Flat list of experiment clips (validated) ordered by start_time
+        from core.models import Clip
+        clips = Clip.objects.filter(
+            experiment_id=obj.id,
+            valid=True
+        ).order_by('start_time')
+        # Reuse your existing per-clip fields: object id/name, behavior, times, file path, etc.
+        return ClipBasicSerializer(clips, many=True).data
 
 class UploadExperimentSerializer(BaseExperimentSerializer):
     class Meta(BaseExperimentSerializer.Meta):
