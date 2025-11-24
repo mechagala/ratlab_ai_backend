@@ -91,6 +91,7 @@ class VideoProcessingService:
         for clip_path, episode in zip(result['generated_clips'], result['episodes']):
             clip_meta = self._process_single_clip(
                 clip_path=clip_path,
+                video_path=video_path,
                 episode=episode,
                 fps=fps,
                 experiment_id=experiment_id
@@ -110,13 +111,14 @@ class VideoProcessingService:
         cap.release()
         return float(fps)
 
-    def _process_single_clip(self, clip_path: str, episode: Dict, fps: float, experiment_id: int) -> Dict:
+    def _process_single_clip(self, clip_path: str, video_path:str, episode: Dict, fps: float, experiment_id: int) -> Dict:
         saved_path = self._store_clip_file(clip_path, experiment_id)  # ya existe
         metadata = self._extract_clip_metadata(episode, fps)          # ya existe
 
+        logger.info(f"Generando thumbnail para clip guardado en {saved_path}")
         # NUEVO: generar y guardar thumbnail
         thumb_path = self._save_clip_thumbnail(
-            video_path=self.video_path if hasattr(self, "video_path") else "",  # si no, pásalo como arg a _process_single_clip
+            video_path=video_path,
             start_frame=episode['start_frame'],
             end_frame=episode['end_frame'],
             experiment_id=experiment_id,
@@ -254,6 +256,8 @@ class VideoProcessingService:
     def _save_clip_thumbnail(self, video_path: str, start_frame: int, end_frame: int, experiment_id: int, clip_filename: str) -> str:
         # Elegimos el frame medio del episodio en el video original
         target = (start_frame + end_frame) // 2
+
+        logger.info(f"Generando miniatura para clip {video_path}, con target: {target}")
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():

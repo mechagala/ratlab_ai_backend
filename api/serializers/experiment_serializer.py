@@ -87,12 +87,13 @@ class ExperimentSerializer(BaseExperimentSerializer):
 class ClipBasicSerializer(serializers.ModelSerializer):
     behavior_name = serializers.SerializerMethodField()
     object_name = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Clip
         fields = [
             'id', 'video_clip', 'duration', 'start_time', 'end_time',
-            'behavior_id', 'behavior_name', 'experiment_object_id', 'object_name'
+            'behavior_id', 'behavior_name', 'experiment_object_id', 'object_name', 'thumbnail_url'
         ]
         read_only_fields = fields
 
@@ -109,6 +110,12 @@ class ClipBasicSerializer(serializers.ModelSerializer):
             from core.models import ExperimentObject
             obj = ExperimentObject.objects.filter(id=obj.experiment_object_id).first()
             return obj.name if obj else None
+        return None
+
+    def get_thumbnail_url(self, obj):
+        """Returns the absolute URL of the clip thumbnail"""
+        if hasattr(obj, 'thumbnail') and obj.thumbnail:
+            return obj.thumbnail.url
         return None
 
 class ExperimentObjectWithClipsSerializer(serializers.ModelSerializer):

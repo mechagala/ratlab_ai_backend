@@ -18,6 +18,7 @@ class Clip(models.Model):
     )
     
     video_clip = models.FileField(upload_to='experiments/clips/')
+    thumbnail = models.FileField(upload_to='experiments/clips/thumbnails/', null=True, blank=True)
     duration = models.FloatField(
         help_text="Duración en segundos (calculada como end_time - start_time)"
     )

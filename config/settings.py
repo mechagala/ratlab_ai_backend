@@ -16,12 +16,8 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-EXPERIMENTS_VOLUME_PATH = os.environ.get("EXPERIMENTS_VOLUME_PATH", "/ratlab_ai_backend/media")
 VIDEO_PIPELINE_MODEL_PATH = os.environ.get("VIDEO_PIPELINE_MODEL_PATH", "/models/behavior/best.pt")
 VIDEO_PIPELINE_SEGMENTER_PATH = os.environ.get("VIDEO_PIPELINE_SEGMENTER_PATH", "/models/segmenter/best.pt")
-
-MEDIA_ROOT = EXPERIMENTS_VOLUME_PATH   # Django servirá /media en dev
-MEDIA_URL = "/media/"
 
 
 # Quick-start development settings - unsuitable for production
@@ -33,7 +29,7 @@ SECRET_KEY = "django-insecure-m(r=zg6^!drqs8e4evz#x=p08!8i1co)^w+(u9fy6j_k7hjj$^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 
 
 # Application definition
@@ -77,6 +73,26 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+]
+
+# Configuración CORS adicional para archivos de media
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'range',  # Importante para streaming de video
+]
+CORS_EXPOSE_HEADERS = [
+    'content-length',
+    'content-range',
+    'accept-ranges',
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -156,6 +172,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://redis:6379/1')
 
-# Media files (Docker)
-MEDIA_ROOT = '/ratlab_ai_backend/media'  # Ruta dentro del contenedor
+# Media files
+# En Docker: /ratlab_ai_backend/media, en local: BASE_DIR / 'media'
+MEDIA_ROOT = os.environ.get('MEDIA_ROOT', '/ratlab_ai_backend/media')
 MEDIA_URL = '/media/'

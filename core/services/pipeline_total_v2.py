@@ -3,6 +3,9 @@ import cv2
 import json
 import pandas as pd
 import numpy as np
+import subprocess
+import tempfile
+import shutil
 from pathlib import Path
 from ultralytics import YOLO
 from shapely.geometry import Point, box as BoundingBox
@@ -484,9 +487,13 @@ class VideoClipExtractor:
         
         clip_filename = self._get_clip_filename(episode, episode_id)
         output_path = os.path.join(self.output_dir, clip_filename)
+        
+        # Crear archivo temporal para el video sin optimizar
+        temp_output = output_path + '.temp.mp4'
+        
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(
-            output_path, 
+            temp_output, 
             fourcc, 
             self.video_fps, 
             (self.frame_width, self.frame_height)
@@ -505,7 +512,61 @@ class VideoClipExtractor:
         
         out.release()
         logger.debug(f"Clip {episode_id}: Esperados {adjusted_end-adjusted_start+1} frames, escritos {frames_written}")
+        
+        # Post-procesar con FFmpeg para optimizar streaming web
+        # -movflags +faststart mueve el moov atom al inicio del archivo
+        self._optimize_for_web(temp_output, output_path)
+        
         return output_path
+    
+    def _optimize_for_web(self, input_path: str, output_path: str) -> None:
+        """
+        Optimiza el video para streaming web usando FFmpeg.
+        Mueve el moov atom al inicio del archivo y re-codifica a H.264.
+        """
+        try:
+            # Re-codificar a H.264 con faststart para compatibilidad web
+            cmd = [
+                'ffmpeg',
+                '-y',  # Sobrescribir sin preguntar
+                '-i', input_path,
+                '-c:v', 'libx264',  # Codec H.264 para compatibilidad web
+                '-preset', 'fast',  # Balance velocidad/calidad
+                '-crf', '23',  # Calidad (18-28, menor = mejor)
+                '-pix_fmt', 'yuv420p',  # Formato de pixel compatible
+                '-movflags', '+faststart',  # Mover moov atom al inicio
+                '-an',  # Sin audio (los clips de rata no tienen audio)
+                output_path
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120  # Timeout de 2 minutos por clip
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"FFmpeg error: {result.stderr}")
+                # Si FFmpeg falla, usar el archivo original
+                shutil.move(input_path, output_path)
+                return
+            
+            # Eliminar archivo temporal
+            if os.path.exists(input_path):
+                os.remove(input_path)
+                
+            logger.debug(f"Video optimizado para web: {output_path}")
+            
+        except subprocess.TimeoutExpired:
+            logger.error(f"FFmpeg timeout procesando {input_path}")
+            shutil.move(input_path, output_path)
+        except FileNotFoundError:
+            logger.warning("FFmpeg no encontrado, usando video sin optimizar")
+            shutil.move(input_path, output_path)
+        except Exception as e:
+            logger.error(f"Error optimizando video: {e}")
+            shutil.move(input_path, output_path)
     
     def extract_all_clips(self, show_progress: bool = True) -> List[str]:
         generated_clips = []
