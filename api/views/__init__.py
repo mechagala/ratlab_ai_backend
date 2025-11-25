@@ -5,7 +5,7 @@ from .experiment_view import (
     ExperimentDetailView,
     UpdateObjectLabelView
 )
-from .clip_view import ClipDeleteView
+from .clip_view import ClipDeleteView, ClipValidationUpdateView
 from .auth_view import (UserCreateView, LoginView)  # Asegúrate de que tu vista de creación de usuario esté importada
 
 __all__ = [
@@ -15,5 +15,6 @@ __all__ = [
     'ExperimentListView',
     'ExperimentDetailView',
     'UpdateObjectLabelView',
-    'ClipDeleteView'
+    'ClipDeleteView',
+    'ClipValidationUpdateView'
 ]

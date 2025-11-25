@@ -48,25 +48,23 @@ class ExperimentSerializer(BaseExperimentSerializer):
             'clips_count'
         ]
 
-    def get_experiment_objects(self, obj):
-        from core.models import ExperimentObject, Clip, Behavior
+    def get_experiment_objects(self, experiment):
+        from core.models import ExperimentObject, Clip
         
         # Solo procesar si el experimento está completado
-        if obj.status != 'COM':
+        if experiment.status != 'COM':
             return []
             
-        objects = ExperimentObject.objects.filter(experiment_id=obj.id)
+        objects = ExperimentObject.objects.filter(experiment_id=experiment.id)
         objects_data = []
         
         for obj in objects:
-            # Calcular tiempo total de exploración (clips válidos con behavior_type = 'EXP')
+            # Calcular tiempo total de exploración (clips válidos)
+            # Matches the experiment page calculation: sum of valid clips durations
             total_time = Clip.objects.filter(
-                experiment_id=obj.experiment_id,
+                experiment_id=experiment.id,
                 experiment_object_id=obj.id,
-                valid=True,
-                behavior_id__in=Behavior.objects.filter(
-                    behavior_type='EXP'
-                ).values_list('id', flat=True)
+                valid=True
             ).aggregate(total=Sum('duration'))['total'] or 0.0
             
             objects_data.append({
@@ -93,7 +91,8 @@ class ClipBasicSerializer(serializers.ModelSerializer):
         model = Clip
         fields = [
             'id', 'video_clip', 'duration', 'start_time', 'end_time',
-            'behavior_id', 'behavior_name', 'experiment_object_id', 'object_name', 'thumbnail_url'
+            'behavior_id', 'behavior_name', 'experiment_object_id', 'object_name', 
+            'thumbnail_url', 'valid'
         ]
         read_only_fields = fields
 
@@ -153,11 +152,7 @@ class ExperimentObjectWithClipsSerializer(serializers.ModelSerializer):
         return round(total, 2) if total else 0.0
 
 class ExperimentDetailSerializer(serializers.ModelSerializer):
-    objects = ExperimentObjectWithClipsSerializer(
-        many=True,
-        source='experimentobject_set',
-        read_only=True
-    )
+    objects = serializers.SerializerMethodField()
     total_exploration_time = serializers.SerializerMethodField()
     status_display = serializers.CharField(
         source='get_status_display',
@@ -176,6 +171,11 @@ class ExperimentDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def get_objects(self, obj):
+        """Fetch experiment objects manually since experiment_id is an IntegerField"""
+        experiment_objects = ExperimentObject.objects.filter(experiment_id=obj.id)
+        return ExperimentObjectWithClipsSerializer(experiment_objects, many=True).data
+
     def get_total_exploration_time(self, obj):
         from core.models import Clip, Behavior
         total = Clip.objects.filter(
@@ -189,15 +189,15 @@ class ExperimentDetailSerializer(serializers.ModelSerializer):
     
     def get_clips_count(self, obj):
         from core.models import Clip
-        # If you want all clips (not just validated), remove valid=True
-        return Clip.objects.filter(experiment_id=obj.id, valid=True).count()
+        # Return count of all clips
+        return Clip.objects.filter(experiment_id=obj.id).count()
 
     def get_clips(self, obj):
-        # Flat list of experiment clips (validated) ordered by start_time
+        # Flat list of ALL experiment clips ordered by start_time
+        # Frontend will handle filtering based on valid field
         from core.models import Clip
         clips = Clip.objects.filter(
-            experiment_id=obj.id,
-            valid=True
+            experiment_id=obj.id
         ).order_by('start_time')
         # Reuse your existing per-clip fields: object id/name, behavior, times, file path, etc.
         return ClipBasicSerializer(clips, many=True).data
@@ -209,10 +209,25 @@ class UploadExperimentSerializer(BaseExperimentSerializer):
             'video_file': {'required': True}
         }
 
-class UpdateObjectLabelSerializer(serializers.Serializer, ExperimentObjectReferenceValidator):
+class UpdateObjectLabelSerializer(serializers.Serializer):
     reference = serializers.IntegerField(min_value=1, max_value=2)
     label = serializers.ChoiceField(choices=ExperimentObject.Label.choices)
     new_name = serializers.CharField(required=False, max_length=100)
+
+    def validate_reference(self, value):
+        """Validate that the object with this reference EXISTS (for updates)"""
+        experiment_id = self.context.get('experiment_id')
+        if not experiment_id:
+            raise serializers.ValidationError("Se requiere experiment_id en el contexto")
+        
+        if not ExperimentObject.objects.filter(
+            experiment_id=experiment_id,
+            reference=value
+        ).exists():
+            raise serializers.ValidationError(
+                f"No existe un objeto con referencia {value} en este experimento"
+            )
+        return value
 
     def update(self, instance, validated_data):
         instance.label = validated_data['label']

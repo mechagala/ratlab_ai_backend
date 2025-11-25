@@ -5,7 +5,8 @@ from api.views import (
     ExperimentListView,
     ExperimentDetailView,
     UpdateObjectLabelView,
-    ClipDeleteView
+    ClipDeleteView,
+    ClipValidationUpdateView
 )
 
 urlpatterns = [
@@ -20,4 +21,5 @@ urlpatterns = [
     
     # Endpoints de Clips
     path('experiments/<int:experiment_id>/clips/delete/', ClipDeleteView.as_view(), name='delete-clips'),
+    path('experiments/<int:experiment_id>/clips/validate/', ClipValidationUpdateView.as_view(), name='validate-clips'),
 ]

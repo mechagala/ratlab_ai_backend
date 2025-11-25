@@ -96,9 +96,6 @@ class ExperimentDetailView(APIView):
 class UpdateObjectLabelView(APIView):
     """Endpoint para actualizar labels de objetos (PATCH)"""
     def patch(self, request, experiment_id):
-        # Ahora necesitamos obtener el objeto directamente
-        from core.models import ExperimentObject
-        
         # Validar que el experimento existe
         get_object_or_404(Experiment, id=experiment_id)
         
@@ -114,36 +111,25 @@ class UpdateObjectLabelView(APIView):
             )
 
         try:
-            service = ExperimentService(
-                file_storage=DockerVolumeStorage(),
-                video_processor=CeleryVideoAdapter()
-            )
-            
-            # Obtener el objeto a actualizar
+            # Get and update the object directly
             obj = ExperimentObject.objects.get(
                 experiment_id=experiment_id,
                 reference=serializer.validated_data['reference']
             )
             
-            updated_object = service.update_object_label(
-                experiment_id=experiment_id,
-                reference=serializer.validated_data['reference'],
-                new_label=serializer.validated_data['label']
-            )
+            obj.label = serializer.validated_data['label']
+            if 'new_name' in serializer.validated_data:
+                obj.name = serializer.validated_data['new_name']
+            obj.save()
 
             return Response({
                 "status": "success",
                 "data": {
-                    "object_id": updated_object.id,
-                    "new_label": updated_object.get_label_display()
+                    "object_id": obj.id,
+                    "new_label": obj.get_label_display()
                 }
             })
 
-        except ValueError as e:
-            return Response(
-                {"status": "error", "message": str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         except ExperimentObject.DoesNotExist:
             return Response(
                 {"status": "error", "message": "Objeto no encontrado"},

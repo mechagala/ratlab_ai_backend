@@ -120,3 +120,35 @@ class ClipDeleteSerializer(serializers.Serializer):
                 f"IDs no válidos para este experimento: {invalid_ids}"
             )
         return value
+
+
+class ClipValidationItemSerializer(serializers.Serializer):
+    """Serializer para un item de validación de clip"""
+    id = serializers.IntegerField()
+    valid = serializers.BooleanField()
+
+
+class ClipValidationUpdateSerializer(serializers.Serializer):
+    """Serializer para actualización masiva de validación de clips"""
+    clips = serializers.ListField(
+        child=ClipValidationItemSerializer(),
+        min_length=1,
+        max_length=500
+    )
+
+    def validate_clips(self, value):
+        experiment_id = self.context.get('experiment_id')
+        if not experiment_id:
+            raise serializers.ValidationError("experiment_id es requerido en el contexto")
+        
+        clip_ids = [item['id'] for item in value]
+        existing_ids = set(Clip.objects.filter(
+            experiment_id=experiment_id
+        ).values_list('id', flat=True))
+        
+        invalid_ids = set(clip_ids) - existing_ids
+        if invalid_ids:
+            raise serializers.ValidationError(
+                f"IDs de clips no válidos para este experimento: {invalid_ids}"
+            )
+        return value

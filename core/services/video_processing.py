@@ -234,13 +234,16 @@ class VideoProcessingService:
         Behavior = apps.get_model('core', 'Behavior')
         
         if class_id is None:
-            return Behavior.objects.first()
-            
-        behavior_name = self.BEHAVIOR_MAPPING.get(int(class_id))
-        if behavior_name:
-            return Behavior.objects.filter(name__iexact=behavior_name).first()
+            # Default to exploration behavior (class_id=0)
+            return Behavior.objects.filter(class_id=0).first()
         
-        return Behavior.objects.first()    
+        # Look up by class_id directly (more reliable than name matching)
+        behavior = Behavior.objects.filter(class_id=int(class_id)).first()
+        if behavior:
+            return behavior
+        
+        # Fallback to exploration if class_id not found
+        return Behavior.objects.filter(class_id=0).first()    
         
     def _frame_to_jpeg_bytes(self, frame):
         ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])

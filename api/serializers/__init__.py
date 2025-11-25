@@ -11,6 +11,7 @@ from .clip_serializer import (
     ClipSerializer,
     ClipBasicSerializer,
     ClipDeleteSerializer,
+    ClipValidationUpdateSerializer,
     BehaviorSerializer,
     ExperimentObjectRefSerializer  # Añade esta línea
 )
@@ -26,6 +27,7 @@ __all__ = [
     'ClipSerializer',
     'ClipBasicSerializer',
     'ClipDeleteSerializer',
+    'ClipValidationUpdateSerializer',
     'BehaviorSerializer',
     'ExperimentObjectRefSerializer',
     'UserSerializer' # Añade esta línea
