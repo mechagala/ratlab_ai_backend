@@ -93,6 +93,30 @@ class ExperimentDetailView(APIView):
             "data": serializer.data
         })
 
+    def patch(self, request, experiment_id):
+        """Update experiment name and/or mouse_name"""
+        experiment = get_object_or_404(Experiment, id=experiment_id)
+        
+        # Get fields to update
+        name = request.data.get('name')
+        mouse_name = request.data.get('mouse_name')
+        
+        if name:
+            experiment.name = name
+        if mouse_name:
+            experiment.mouse_name = mouse_name
+        
+        experiment.save()
+        
+        return Response({
+            "status": "success",
+            "data": {
+                "id": experiment.id,
+                "name": experiment.name,
+                "mouse_name": experiment.mouse_name
+            }
+        })
+
 class UpdateObjectLabelView(APIView):
     """Endpoint para actualizar labels de objetos (PATCH)"""
     def patch(self, request, experiment_id):

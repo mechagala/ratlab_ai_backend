@@ -47,11 +47,6 @@ class ExperimentObject(models.Model):
             raise ValidationError({
                 'reference': 'La referencia debe ser 1 (Objeto 1) o 2 (Objeto 2)'
             })
-        
-        if self.label == self.Label.NOVEL and self.reference != 1:
-            raise ValidationError({
-                'label': 'El objeto Novel debe ser la referencia 1'
-            })
 
     def save(self, *args, **kwargs):
         self.full_clean()
